@@ -113,6 +113,10 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Remove test config
+        shell: bash
+        run: rm bin/*.rclone.conf
+
       - name: Install Go
         uses: actions/setup-go@v5
         with:
@@ -227,12 +231,11 @@ jobs:
         shell: bash
         run: |
           if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then make release_dep_linux ; fi
-          make ci_beta
+          mkdir -p rclonebuild
+          make BETA_UPLOAD_ROOT=rclonebuild ci_beta
+          rm rclonebuild/*latest*
         env:
           RCLONE_CONFIG_PASS: ${{ secrets.RCLONE_CONFIG_PASS }}
-        # working-directory: '$(modulePath)'
-        # Deploy binaries if enabled in config && not a PR && not a fork
-        # if: env.RCLONE_CONFIG_PASS != '' && matrix.deploy && github.head_ref == '' && github.repository == 'rclone/rclone'
         if: matrix.deploy
 
       - name: "Upload to github artifact"
