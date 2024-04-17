@@ -237,7 +237,7 @@ jobs:
 
       - name: "Upload to github artifact"
         if: ${{ always() }}
-        uses: JustTestCode/upload-artifact-as-is@master
+        uses: NyaMisty/upload-artifact-as-is@master
         with:
           path: rclonebuild
 
