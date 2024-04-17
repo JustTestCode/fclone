@@ -8,9 +8,9 @@ name: build
 on:
   push:
     branches:
-      - '**'
+      - "**"
     tags:
-      - '**'
+      - "**"
   pull_request:
   workflow_dispatch:
     inputs:
@@ -22,17 +22,27 @@ on:
 
 jobs:
   build:
-    if: ${{ github.event.inputs.manual == 'true' || (github.repository == 'rclone/rclone' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.event.pull_request.base.repo.full_name)) }}
+    if: ${{ github.event.inputs.manual == 'true'  }}
     timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
-        job_name: ['linux', 'linux_386', 'mac_amd64', 'mac_arm64', 'windows', 'other_os', 'go1.20', 'go1.21']
+        job_name:
+          [
+            "linux",
+            "linux_386",
+            "mac_amd64",
+            "mac_arm64",
+            "windows",
+            "other_os",
+            "go1.20",
+            "go1.21"
+          ]
 
         include:
           - job_name: linux
             os: ubuntu-latest
-            go: '>=1.22.0-rc.1'
+            go: ">=1.22.0-rc.1"
             gotags: cmount
             build_flags: '-include "^linux/"'
             check: true
@@ -43,15 +53,15 @@ jobs:
 
           - job_name: linux_386
             os: ubuntu-latest
-            go: '>=1.22.0-rc.1'
+            go: ">=1.22.0-rc.1"
             goarch: 386
             gotags: cmount
             quicktest: true
 
           - job_name: mac_amd64
             os: macos-latest
-            go: '>=1.22.0-rc.1'
-            gotags: 'cmount'
+            go: ">=1.22.0-rc.1"
+            gotags: "cmount"
             build_flags: '-include "^darwin/amd64" -cgo'
             quicktest: true
             racequicktest: true
@@ -59,37 +69,37 @@ jobs:
 
           - job_name: mac_arm64
             os: macos-latest
-            go: '>=1.22.0-rc.1'
-            gotags: 'cmount'
+            go: ">=1.22.0-rc.1"
+            gotags: "cmount"
             build_flags: '-include "^darwin/arm64" -cgo -macos-arch arm64 -cgo-cflags=-I/usr/local/include -cgo-ldflags=-L/usr/local/lib'
             deploy: true
 
           - job_name: windows
             os: windows-latest
-            go: '>=1.22.0-rc.1'
+            go: ">=1.22.0-rc.1"
             gotags: cmount
-            cgo: '0'
+            cgo: "0"
             build_flags: '-include "^windows/"'
-            build_args: '-buildmode exe'
+            build_args: "-buildmode exe"
             quicktest: true
             deploy: true
 
           - job_name: other_os
             os: ubuntu-latest
-            go: '>=1.22.0-rc.1'
+            go: ">=1.22.0-rc.1"
             build_flags: '-exclude "^(windows/|darwin/|linux/)"'
             compile_all: true
             deploy: true
 
           - job_name: go1.20
             os: ubuntu-latest
-            go: '1.20'
+            go: "1.20"
             quicktest: true
             racequicktest: true
 
           - job_name: go1.21
             os: ubuntu-latest
-            go: '1.21'
+            go: "1.21"
             quicktest: true
             racequicktest: true
 
@@ -222,7 +232,14 @@ jobs:
           RCLONE_CONFIG_PASS: ${{ secrets.RCLONE_CONFIG_PASS }}
         # working-directory: '$(modulePath)'
         # Deploy binaries if enabled in config && not a PR && not a fork
-        if: env.RCLONE_CONFIG_PASS != '' && matrix.deploy && github.head_ref == '' && github.repository == 'rclone/rclone'
+        # if: env.RCLONE_CONFIG_PASS != '' && matrix.deploy && github.head_ref == '' && github.repository == 'rclone/rclone'
+        if: matrix.deploy
+
+      - name: "Upload to github artifact"
+        if: ${{ always() }}
+        uses: JustTestCode/upload-artifact-as-is@master
+        with:
+          path: rclonebuild
 
   lint:
     if: ${{ github.event.inputs.manual == 'true' || (github.repository == 'rclone/rclone' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.event.pull_request.base.repo.full_name)) }}
@@ -244,7 +261,7 @@ jobs:
       - name: Install Go
         uses: actions/setup-go@v5
         with:
-          go-version: '>=1.22.0-rc.1'
+          go-version: ">=1.22.0-rc.1"
           check-latest: true
 
       - name: Install govulncheck
@@ -254,7 +271,7 @@ jobs:
         run: govulncheck ./...
 
   android:
-    if: ${{ github.event.inputs.manual == 'true' || (github.repository == 'rclone/rclone' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.event.pull_request.base.repo.full_name)) }}
+    if: ${{ github.event.inputs.manual == 'true' }}
     timeout-minutes: 30
     name: "android-all"
     runs-on: ubuntu-latest
@@ -269,7 +286,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '>=1.22.0-rc.1'
+          go-version: ">=1.22.0-rc.1"
 
       - name: Go module cache
         uses: actions/cache@v4
@@ -358,3 +375,37 @@ jobs:
           RCLONE_CONFIG_PASS: ${{ secrets.RCLONE_CONFIG_PASS }}
         # Upload artifacts if not a PR && not a fork
         if: env.RCLONE_CONFIG_PASS != '' && github.head_ref == '' && github.repository == 'rclone/rclone'
+
+  release:
+    name: "release"
+    timeout-minutes: 60
+    runs-on: ubuntu-latest
+    needs: [build, android]
+    if: always()
+    steps:
+      - name: "Create artifact directory"
+        run: |
+          mkdir -p rclonebuild_down
+      - name: "Download all artifacts"
+        uses: actions/download-artifact@v2
+        with:
+          path: rclonebuild_down
+      - name: "Rearrange artifacts"
+        run: |
+          find rclonebuild_down
+          mkdir -p rclonebuild
+          mv rclonebuild_down/*/* rclonebuild
+          ls rclonebuild
+          if [ "$(ls -A rclonebuild)" ]; then exit 0; else exit 1; fi
+      - name: "Upload to Github Prerelease"
+        uses: ncipollo/release-action@v1
+        with:
+          artifacts: "rclonebuild/*"
+          token: ${{ secrets.GITHUB_TOKEN }}
+          name: ${{ format('AutoBuild - {0}', github.event.commits[0].message) }}
+          tag: "action_build"
+          commit: master
+          #prerelease: true
+          allowUpdates: true
+          removeArtifacts: true
+          artifactErrorsFailBuild: true
